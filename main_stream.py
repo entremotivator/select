@@ -3,10 +3,10 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.streaming_stdout_final_only import FinalStreamingStdOutCallbackHandler
 from langchain.llms import Ollama
 from langchain.agents import AgentType, initialize_agent, load_tools
-from langchain.toolkit.github_toolkit import GitHubToolkit
+from langchain_community.tools.github.tool import GitHubAction
 
 import streamlit as st
-import os
+from typing import Optional, Type
 
 def select_best_model(user_input, models_dict):
     llm = Ollama(model="neural-chat")  # Selector Model
@@ -54,6 +54,13 @@ models_dict = {
 # Additional langchain tools
 additional_tools = ["tool1", "tool2", "tool3"]
 
+# GitHub Toolkit UI elements
+github_checkbox = st.checkbox("Connect to GitHub?", value=False, key="github_checkbox")
+if github_checkbox:
+    os.environ["GITHUB_API_TOKEN"] = "Your_GitHub_API_Token"
+    os.environ["GITHUB_REPOSITORY"] = "Your_Owner/Your_Repo"
+    github_tool = GitHubAction()
+
 # Layout the UI
 st.set_page_config(page_title="Ollama Web UI by @PromptEngineer48", layout="wide")
 st.title("Ollama Web UI by @PromptEngineer48")
@@ -64,19 +71,6 @@ st.text_input("Send a message", key="user_input")
 
 # Checkbox to select internet usage
 search_internet = st.checkbox("Check internet?", value=False, key="internet")
-
-# GitHub Toolkit UI elements
-github_checkbox = st.checkbox("Connect to GitHub?", value=False, key="github_checkbox")
-if github_checkbox:
-    os.environ["GITHUB_APP_ID"] = "Your_GitHub_App_ID"
-    os.environ["GITHUB_APP_PRIVATE_KEY"] = "Your_GitHub_Private_Key_File_Name"
-    os.environ["GITHUB_REPOSITORY"] = "Your_GitHub_Repository"
-    
-    # Initialize GitHub Toolkit
-    github_toolkit = GitHubToolkit.from_github_api_wrapper(github)
-
-    # Get GitHub tools
-    github_tools = github_toolkit.get_tools()
 
 # Check for input
 if st.session_state.user_input:
@@ -101,7 +95,7 @@ if st.session_state.user_input:
         # Combine with GitHub tools if selected
         if github_checkbox:
             agent = initialize_agent(
-                additional_tool_agent + github_tools,
+                additional_tool_agent + [github_tool],
                 llm,
                 agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
                 verbose=True,
