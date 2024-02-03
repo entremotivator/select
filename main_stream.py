@@ -3,10 +3,8 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.streaming_stdout_final_only import FinalStreamingStdOutCallbackHandler
 from langchain.llms import Ollama
 from langchain.agents import AgentType, initialize_agent, load_tools
-from langchain_community.tools.github.tool import GitHubAction
 
 import streamlit as st
-import os
 
 def select_best_model(user_input, models_dict):
     llm = Ollama(model="neural-chat")  # Selector Model
@@ -54,19 +52,6 @@ models_dict = {
 # Additional langchain tools
 additional_tools = ["tool1", "tool2", "tool3"]
 
-# GitHub Toolkit UI elements
-github_checkbox = st.checkbox("Connect to GitHub?", value=False, key="github_checkbox")
-
-if github_checkbox:
-    st.sidebar.subheader("GitHub Configuration")
-    github_api_token = st.sidebar.text_input("GitHub API Token")
-    github_owner = st.sidebar.text_input("GitHub Repository Owner")
-    github_repo = st.sidebar.text_input("GitHub Repository Name")
-
-    os.environ["GITHUB_API_TOKEN"] = github_api_token
-    os.environ["GITHUB_REPOSITORY"] = f"{github_owner}/{github_repo}"
-    github_tool = GitHubAction()
-
 # Layout the UI
 st.set_page_config(page_title="Ollama Web UI by @PromptEngineer48", layout="wide")
 st.title("Ollama Web UI by @PromptEngineer48")
@@ -98,24 +83,13 @@ if st.session_state.user_input:
         # Load additional tools
         additional_tool_agent = load_tools(additional_tools)
         
-        # Combine with GitHub tools if selected
-        if github_checkbox:
-            agent = initialize_agent(
-                additional_tool_agent + [github_tool],
-                llm,
-                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=True,
-                handle_parsing_errors=True
-            )
-        else:
-            agent = initialize_agent(
-                additional_tool_agent,
-                llm,
-                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=True,
-                handle_parsing_errors=True
-            )
-
+        agent = initialize_agent(
+            additional_tool_agent,
+            llm,
+            agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            verbose=True,
+            handle_parsing_errors=True
+        )
         response = agent.run(st.session_state.user_input, callbacks=[StreamlitCallbackHandler(st.container())])
         # BUG 2023Nov05 can spiral Q&A: https://github.com/langchain-ai/langchain/issues/12892
         # to get out, refresh browser page
