@@ -1,10 +1,13 @@
+import os
+import tempfile
+import streamlit as st
+from streamlit_chat import message
+from rag import ChatPDF
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.streaming_stdout_final_only import FinalStreamingStdOutCallbackHandler
 from langchain.llms import Ollama
 from langchain.agents import AgentType, initialize_agent, load_tools
-
-import streamlit as st
 
 def select_best_model(user_input, models_dict):
     llm = Ollama(model="neural-chat")  # Selector Model
@@ -58,14 +61,14 @@ st.title("Ollama Web UI by @PromptEngineer48")
 
 # Main content area
 st.header("How can I help you today?")
-st.text_input("Send a message", key="user_input")
+user_input = st.text_input("Send a message", key="user_input")
 
 # Checkbox to select internet usage
 search_internet = st.checkbox("Check internet?", value=False, key="internet")
 
 # Check for input
-if st.session_state.user_input:
-    best_model = select_best_model(st.session_state.user_input, models_dict)
+if user_input:
+    best_model = select_best_model(user_input, models_dict)
     
     st.sidebar.write(f"THE SELECTED MODEL IS : {best_model}")
     
@@ -73,7 +76,7 @@ if st.session_state.user_input:
     response = ""
     if not search_internet:
         llm = Ollama(model=best_model)  # Use the selected model
-        response = llm(st.session_state.user_input)
+        response = llm(user_input)
     else:
         llm = Ollama(
             model=best_model,
@@ -90,8 +93,63 @@ if st.session_state.user_input:
             verbose=True,
             handle_parsing_errors=True
         )
-        response = agent.run(st.session_state.user_input, callbacks=[StreamlitCallbackHandler(st.container())])
+        response = agent.run(user_input, callbacks=[StreamlitCallbackHandler(st.container())])
         # BUG 2023Nov05 can spiral Q&A: https://github.com/langchain-ai/langchain/issues/12892
         # to get out, refresh browser page
         
     st.markdown(response)
+
+# ChatPDF Section
+def display_messages():
+    st.subheader("Chat")
+    for i, (msg, is_user) in enumerate(st.session_state["messages"]):
+        message(msg, is_user=is_user, key=str(i))
+    st.session_state["thinking_spinner"] = st.empty()
+
+def process_input():
+    if st.session_state["user_input"] and len(st.session_state["user_input"].strip()) > 0:
+        user_text = st.session_state["user_input"].strip()
+        with st.session_state["thinking_spinner"], st.spinner(f"Thinking"):
+            agent_text = st.session_state["assistant"].ask(user_text)
+
+        st.session_state["messages"].append((user_text, True))
+        st.session_state["messages"].append((agent_text, False))
+
+def read_and_save_file():
+    st.session_state["assistant"].clear()
+    st.session_state["messages"] = []
+    st.session_state["user_input"] = ""
+
+    for file in st.session_state["file_uploader"]:
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            tf.write(file.getbuffer())
+            file_path = tf.name
+
+        with st.session_state["ingestion_spinner"], st.spinner(f"Ingesting {file.name}"):
+            st.session_state["assistant"].ingest(file_path)
+        os.remove(file_path)
+
+def chat_pdf_page():
+    if len(st.session_state) == 0:
+        st.session_state["messages"] = []
+        st.session_state["assistant"] = ChatPDF()
+
+    st.header("ChatPDF")
+
+    st.subheader("Upload a document")
+    st.file_uploader(
+        "Upload document",
+        type=["pdf"],
+        key="file_uploader",
+        on_change=read_and_save_file,
+        label_visibility="collapsed",
+        accept_multiple_files=True,
+    )
+
+    st.session_state["ingestion_spinner"] = st.empty()
+
+    display_messages()
+    st.text_input("Message", key="user_input", on_change=process_input)
+
+if __name__ == "__main__":
+    chat_pdf_page()
