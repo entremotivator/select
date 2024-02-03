@@ -61,14 +61,14 @@ st.title("Ollama Web UI by @PromptEngineer48")
 
 # Main content area
 st.header("How can I help you today?")
-user_input = st.text_input("Send a message", key="user_input")
+st.text_input("Send a message", key="user_input")
 
 # Checkbox to select internet usage
 search_internet = st.checkbox("Check internet?", value=False, key="internet")
 
 # Check for input
-if user_input:
-    best_model = select_best_model(user_input, models_dict)
+if st.session_state.user_input:
+    best_model = select_best_model(st.session_state.user_input, models_dict)
     
     st.sidebar.write(f"THE SELECTED MODEL IS : {best_model}")
     
@@ -76,7 +76,7 @@ if user_input:
     response = ""
     if not search_internet:
         llm = Ollama(model=best_model)  # Use the selected model
-        response = llm(user_input)
+        response = llm(st.session_state.user_input)
     else:
         llm = Ollama(
             model=best_model,
@@ -93,18 +93,20 @@ if user_input:
             verbose=True,
             handle_parsing_errors=True
         )
-        response = agent.run(user_input, callbacks=[StreamlitCallbackHandler(st.container())])
+        response = agent.run(st.session_state.user_input, callbacks=[StreamlitCallbackHandler(st.container())])
         # BUG 2023Nov05 can spiral Q&A: https://github.com/langchain-ai/langchain/issues/12892
         # to get out, refresh browser page
         
     st.markdown(response)
 
-# ChatPDF Section
+# The code for the ChatPDF integration starts here
+
 def display_messages():
     st.subheader("Chat")
     for i, (msg, is_user) in enumerate(st.session_state["messages"]):
         message(msg, is_user=is_user, key=str(i))
     st.session_state["thinking_spinner"] = st.empty()
+
 
 def process_input():
     if st.session_state["user_input"] and len(st.session_state["user_input"].strip()) > 0:
@@ -114,6 +116,7 @@ def process_input():
 
         st.session_state["messages"].append((user_text, True))
         st.session_state["messages"].append((agent_text, False))
+
 
 def read_and_save_file():
     st.session_state["assistant"].clear()
@@ -129,7 +132,8 @@ def read_and_save_file():
             st.session_state["assistant"].ingest(file_path)
         os.remove(file_path)
 
-def chat_pdf_page():
+
+def page():
     if len(st.session_state) == 0:
         st.session_state["messages"] = []
         st.session_state["assistant"] = ChatPDF()
@@ -151,5 +155,6 @@ def chat_pdf_page():
     display_messages()
     st.text_input("Message", key="user_input", on_change=process_input)
 
+
 if __name__ == "__main__":
-    chat_pdf_page()
+    page()
