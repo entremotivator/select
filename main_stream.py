@@ -57,19 +57,34 @@ st.title("Ollama Web UI by @PromptEngineer48")
 st.header("How can I help you today?")
 st.text_input("Send a message", key="user_input")
 
+# Checkbox to select internet usage
+search_internet = st.checkbox("Check internet?", value=False, key="internet")
+
 # Check for input
 if st.session_state.user_input:
     best_model = select_best_model(st.session_state.user_input, models_dict)
     
     st.sidebar.write(f"THE SELECTED MODEL IS : {best_model}")
     
-    # Combine the code for the selected model
-    llm = Ollama(model=best_model, callback_manager=CallbackManager([StreamingStdOutCallbackHandler(), FinalStreamingStdOutCallbackHandler()]))
-    response = llm(st.session_state.user_input)
-    st.write(response)
-
-# Future enhancements
-# Memory
-# Host
-# More LLMs
-# Own LLMs (Finetuning)
+    # Combine the code for the selected model with internet option
+    response = ""
+    if not search_internet:
+        llm = Ollama(model=best_model)  # Use the selected model
+        response = llm(st.session_state.user_input)
+    else:
+        llm = Ollama(
+            model=best_model,
+            callback_manager=CallbackManager([StreamingStdOutCallbackHandler(), FinalStreamingStdOutCallbackHandler()])
+        )
+        agent = initialize_agent(
+            load_tools(["ddg-search"]),
+            llm,
+            agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            verbose=True,
+            handle_parsing_errors=True
+        )
+        response = agent.run(st.session_state.user_input, callbacks=[StreamlitCallbackHandler(st.container())])
+        # BUG 2023Nov05 can spiral Q&A: https://github.com/langchain-ai/langchain/issues/12892
+        # to get out, refresh browser page
+        
+    st.markdown(response)
