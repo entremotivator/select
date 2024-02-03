@@ -3,8 +3,10 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.streaming_stdout_final_only import FinalStreamingStdOutCallbackHandler
 from langchain.llms import Ollama
 from langchain.agents import AgentType, initialize_agent, load_tools
+from langchain.toolkit.github_toolkit import GitHubToolkit
 
 import streamlit as st
+import os
 
 def select_best_model(user_input, models_dict):
     llm = Ollama(model="neural-chat")  # Selector Model
@@ -49,6 +51,9 @@ models_dict = {
     'dolphin2.2-mistral': 'An instruct-tuned model based on Mistral. Version 2.2 is fine-tuned for improved conversation and empathy.',
 }
 
+# Additional langchain tools
+additional_tools = ["tool1", "tool2", "tool3"]
+
 # Layout the UI
 st.set_page_config(page_title="Ollama Web UI by @PromptEngineer48", layout="wide")
 st.title("Ollama Web UI by @PromptEngineer48")
@@ -59,6 +64,19 @@ st.text_input("Send a message", key="user_input")
 
 # Checkbox to select internet usage
 search_internet = st.checkbox("Check internet?", value=False, key="internet")
+
+# GitHub Toolkit UI elements
+github_checkbox = st.checkbox("Connect to GitHub?", value=False, key="github_checkbox")
+if github_checkbox:
+    os.environ["GITHUB_APP_ID"] = "Your_GitHub_App_ID"
+    os.environ["GITHUB_APP_PRIVATE_KEY"] = "Your_GitHub_Private_Key_File_Name"
+    os.environ["GITHUB_REPOSITORY"] = "Your_GitHub_Repository"
+    
+    # Initialize GitHub Toolkit
+    github_toolkit = GitHubToolkit.from_github_api_wrapper(github)
+
+    # Get GitHub tools
+    github_tools = github_toolkit.get_tools()
 
 # Check for input
 if st.session_state.user_input:
@@ -76,13 +94,28 @@ if st.session_state.user_input:
             model=best_model,
             callback_manager=CallbackManager([StreamingStdOutCallbackHandler(), FinalStreamingStdOutCallbackHandler()])
         )
-        agent = initialize_agent(
-            load_tools(["ddg-search"]),
-            llm,
-            agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-            verbose=True,
-            handle_parsing_errors=True
-        )
+        
+        # Load additional tools
+        additional_tool_agent = load_tools(additional_tools)
+        
+        # Combine with GitHub tools if selected
+        if github_checkbox:
+            agent = initialize_agent(
+                additional_tool_agent + github_tools,
+                llm,
+                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+                verbose=True,
+                handle_parsing_errors=True
+            )
+        else:
+            agent = initialize_agent(
+                additional_tool_agent,
+                llm,
+                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+                verbose=True,
+                handle_parsing_errors=True
+            )
+
         response = agent.run(st.session_state.user_input, callbacks=[StreamlitCallbackHandler(st.container())])
         # BUG 2023Nov05 can spiral Q&A: https://github.com/langchain-ai/langchain/issues/12892
         # to get out, refresh browser page
