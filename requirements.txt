@@ -3,3 +3,6 @@ requests
 streamlit
 #conda name newopenai
 #pip install -r requirements.txt
+
+rag==
+streamlit-chat
