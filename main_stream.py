@@ -6,7 +6,7 @@ from langchain.agents import AgentType, initialize_agent, load_tools
 from langchain_community.tools.github.tool import GitHubAction
 
 import streamlit as st
-from typing import Optional, Type
+import os
 
 def select_best_model(user_input, models_dict):
     llm = Ollama(model="neural-chat")  # Selector Model
@@ -56,9 +56,15 @@ additional_tools = ["tool1", "tool2", "tool3"]
 
 # GitHub Toolkit UI elements
 github_checkbox = st.checkbox("Connect to GitHub?", value=False, key="github_checkbox")
+
 if github_checkbox:
-    os.environ["GITHUB_API_TOKEN"] = "Your_GitHub_API_Token"
-    os.environ["GITHUB_REPOSITORY"] = "Your_Owner/Your_Repo"
+    st.sidebar.subheader("GitHub Configuration")
+    github_api_token = st.sidebar.text_input("GitHub API Token")
+    github_owner = st.sidebar.text_input("GitHub Repository Owner")
+    github_repo = st.sidebar.text_input("GitHub Repository Name")
+
+    os.environ["GITHUB_API_TOKEN"] = github_api_token
+    os.environ["GITHUB_REPOSITORY"] = f"{github_owner}/{github_repo}"
     github_tool = GitHubAction()
 
 # Layout the UI
